@@ -1,0 +1,54 @@
+<idea-plugin>
+    <id>dev.lazylittle.langcompare</id>
+    <name>Programming Language Comparison</name>
+    <vendor>lazylittle</vendor>
+
+    <description><![CDATA[
+    <p>Compare code across programming languages without leaving the IDE.</p>
+    <ul>
+      <li>Select any code snippet and see the equivalent code in your target languages (Java, Go, Kotlin, TypeScript, ...)
+          right below the selection, translated in real time by an OpenAI-compatible LLM.</li>
+      <li>OpenAI-format configuration: Base URL / API Key / Model. Works with OpenAI, DeepSeek, Moonshot, Qwen,
+          Ollama, One-API/New-API gateways, and any OpenAI-compatible endpoint.</li>
+      <li>Results are mirrored in the "LangCompare" tool window for easy copying.</li>
+    </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+                id="dev.lazylittle.langcompare.settings"
+                parentId="tools"
+                displayName="Language Comparison"
+                instance="dev.lazylittle.langcompare.settings.LlmSettingsConfigurable"/>
+        <toolWindow
+                id="LangCompare"
+                factoryClass="dev.lazylittle.langcompare.ui.TranslationsToolWindowFactory"
+                anchor="bottom"
+                icon="AllIcons.Actions.Preview"/>
+    </extensions>
+
+    <applicationListeners>
+        <listener class="dev.lazylittle.langcompare.editor.EditorEventWatcher"
+                  topic="com.intellij.openapi.editor.event.SelectionListener"/>
+        <listener class="dev.lazylittle.langcompare.editor.EditorEventWatcher"
+                  topic="com.intellij.openapi.editor.event.DocumentListener"/>
+        <listener class="dev.lazylittle.langcompare.editor.EditorEventWatcher"
+                  topic="com.intellij.openapi.editor.event.EditorFactoryListener"/>
+    </applicationListeners>
+
+    <actions>
+        <action id="LangCompare.TranslateSelection"
+                class="dev.lazylittle.langcompare.actions.TranslateSelectionAction"
+                icon="AllIcons.Actions.Preview">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+        </action>
+        <action id="LangCompare.ClearTranslations"
+                class="dev.lazylittle.langcompare.actions.ClearTranslationsAction"
+                icon="AllIcons.Actions.Cancel">
+            <add-to-group group-id="EditorPopupMenu" anchor="after"
+                          relative-to-action="LangCompare.TranslateSelection"/>
+        </action>
+    </actions>
+</idea-plugin>
