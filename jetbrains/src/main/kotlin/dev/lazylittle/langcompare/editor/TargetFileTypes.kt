@@ -18,6 +18,8 @@ import com.intellij.testFramework.LightVirtualFile
  */
 object TargetFileTypes {
 
+    private val LOG = com.intellij.openapi.diagnostic.Logger.getInstance("langcompare")
+
     // Short LLM-style names that do not equal any registered file type or language name.
     private val ALIASES = mapOf(
         "js" to "JavaScript",
@@ -87,15 +89,31 @@ object TargetFileTypes {
         val ext = EXTENSIONS[canonical] ?: Regex("[^a-z0-9]").replace(canonical.lowercase(), "")
         if (ext.isEmpty()) return null
         val file = LightVirtualFile("snippet.$ext")
-        return if (isPlainText(file.fileType)) null else file
+        // TextMate bundles claim extensions via a FileTypeDetector, which only runs in the
+        // file-based lookup (getFileTypeByFile), not in the by-name association lookup.
+        val claimed = FileTypeManager.getInstance().getFileTypeByFile(file)
+        if (isPlainText(claimed)) return null
+        file.setFileType(claimed)
+        return file
     }
 
     /** Lexer-level highlighter for coloring translated code that lives outside a real editor. */
     fun syntaxHighlighterFor(target: String, project: Project?): SyntaxHighlighter? {
-        val file = resolveVirtualFile(target) ?: return null
-        return runCatching {
+        val file = resolveVirtualFile(target)
+        if (file == null) {
+            logOnce("no lexer claims target '$target'")
+            return null
+        }
+        val highlighter = runCatching {
             SyntaxHighlighterFactory.getSyntaxHighlighter(file.fileType, project, file)
         }.getOrNull()
+        logOnce("highlighter for '$target': file=${file.name} type=${file.fileType.name} hl=${highlighter?.javaClass?.name}")
+        return highlighter
+    }
+
+    private val logged = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private fun logOnce(message: String) {
+        if (logged.add(message)) LOG.info(message)
     }
 
     // Language IDs are case-sensitive ("JAVA", "kotlin", "go"), so try the common spellings.
