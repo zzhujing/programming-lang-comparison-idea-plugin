@@ -71,9 +71,9 @@ class TranslationInlayRenderer(private val editor: Editor, private val model: Ta
     private fun headerText(): String {
         val status = model.statusText()
         val base = if (status.isEmpty()) "→ ${model.target}" else "→ ${model.target}  ($status)"
-        // Finished result, but this IDE has no lexer for the target language (e.g. Java in PyCharm).
+        // Finished result, but no lexer in this IDE yields colors for the target language (e.g. Java in PyCharm).
         val hint = if (status.isEmpty() && model.displayText().isNotBlank() &&
-            TargetFileTypes.syntaxHighlighterFor(model.target, editor.project) == null
+            TargetFileTypes.syntaxHighlighterFor(model.target, editor.project, model.displayText()) == null
         ) "  (no syntax highlighting for this language in this IDE)" else ""
         return base + hint
     }
@@ -202,9 +202,9 @@ class TranslationInlayRenderer(private val editor: Editor, private val model: Ta
     }
 
     private fun computeSpans(lines: List<String>): List<List<Span>> {
-        val highlighter = TargetFileTypes.syntaxHighlighterFor(model.target, editor.project) ?: return emptyList()
-        val lexer = highlighter.highlightingLexer
         val text = lines.joinToString("\n")
+        val highlighter = TargetFileTypes.syntaxHighlighterFor(model.target, editor.project, text) ?: return emptyList()
+        val lexer = highlighter.highlightingLexer
         val lineStarts = IntArray(lines.size)
         var offset = 0
         for (i in lines.indices) {
