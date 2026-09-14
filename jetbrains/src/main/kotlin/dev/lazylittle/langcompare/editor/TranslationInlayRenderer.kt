@@ -70,7 +70,12 @@ class TranslationInlayRenderer(private val editor: Editor, private val model: Ta
 
     private fun headerText(): String {
         val status = model.statusText()
-        return if (status.isEmpty()) "→ ${model.target}" else "→ ${model.target}  ($status)"
+        val base = if (status.isEmpty()) "→ ${model.target}" else "→ ${model.target}  ($status)"
+        // Finished result, but this IDE has no lexer for the target language (e.g. Java in PyCharm).
+        val hint = if (status.isEmpty() && model.displayText().isNotBlank() &&
+            TargetFileTypes.syntaxHighlighterFor(model.target, editor.project) == null
+        ) "  (no syntax highlighting for this language in this IDE)" else ""
+        return base + hint
     }
 
     private fun contentLines(): List<String> {
