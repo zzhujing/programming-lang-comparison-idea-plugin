@@ -1,0 +1,120 @@
+{
+  "name": "programming-lang-comparison",
+  "displayName": "Programming Language Comparison",
+  "description": "Select code and compare it against another language, translated in real time by any OpenAI-format LLM.",
+  "version": "0.1.0",
+  "publisher": "lazylittle",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zzhujing/programming-lang-comparison-idea-plugin"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "langcompare.translateSelection",
+        "title": "LangCompare: Translate Selection"
+      },
+      {
+        "command": "langcompare.clear",
+        "title": "LangCompare: Clear"
+      },
+      {
+        "command": "langcompare.setApiKey",
+        "title": "LangCompare: Set API Key"
+      },
+      {
+        "command": "langcompare.openSettings",
+        "title": "LangCompare: Open Settings"
+      },
+      {
+        "command": "langcompare.copyTranslation",
+        "title": "LangCompare: Copy Translation",
+        "icon": "$(copy)"
+      }
+    ],
+    "menus": {
+      "comments/commentThread/title": [
+        {
+          "command": "langcompare.copyTranslation",
+          "when": "commentThread == 'langcompareThread'",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Language Comparison",
+      "properties": {
+        "langcompare.baseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "OpenAI-compatible endpoint base (with /v1), e.g. https://open.bigmodel.cn/api/paas/v4 — works with DeepSeek, Moonshot, Qwen, One-API/New-API gateways, ..."
+        },
+        "langcompare.model": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "Model name, e.g. glm-5.3-flash, gpt-4o-mini, deepseek-chat"
+        },
+        "langcompare.targetLanguage": {
+          "type": "string",
+          "default": "Java",
+          "description": "Single target language, e.g. Java, Go, Kotlin, TypeScript"
+        },
+        "langcompare.sourceLanguage": {
+          "type": "string",
+          "default": "",
+          "description": "Optional source-language override, e.g. Python, Node.js. Empty = auto-detect from the file."
+        },
+        "langcompare.autoTranslate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Translate automatically while selecting code"
+        },
+        "langcompare.debounceMillis": {
+          "type": "number",
+          "default": 500,
+          "minimum": 200,
+          "maximum": 10000,
+          "description": "Debounce interval for auto trigger (ms, 200–10000)"
+        },
+        "langcompare.streaming": {
+          "type": "boolean",
+          "default": true,
+          "description": "Stream tokens as they are generated"
+        },
+        "langcompare.disableThinking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Adds thinking:{type:disabled} directly in the OpenAI-format request (supported by bigmodel/GLM) to cut time-to-first-token. Turn off if your provider rejects unknown fields."
+        },
+        "langcompare.maxInputTokens": {
+          "type": "number",
+          "default": 4000,
+          "minimum": 0,
+          "description": "Rough cap on prompt size (~4 chars/token for code, ~1/char for CJK); oversized selections are rejected before any request. 0 = unlimited."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.4.5"
+  }
+}

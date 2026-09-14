@@ -5,3 +5,6 @@ build/
 *.iml
 .kotlin/
 .DS_Store
+node_modules/
+vscode/out/
+*.vsix
