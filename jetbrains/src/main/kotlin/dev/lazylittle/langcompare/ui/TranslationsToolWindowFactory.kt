@@ -8,8 +8,9 @@ import dev.lazylittle.langcompare.editor.TranslationManager
 
 class TranslationsToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val panel = TranslationsPanel()
+        val panel = TranslationsPanel(project)
         val content = ContentFactory.getInstance().createContent(panel, "", false)
+        content.setDisposer(panel)
         toolWindow.contentManager.addContent(content)
         project.getService(TranslationManager::class.java).panel = panel
     }
