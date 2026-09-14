@@ -7,11 +7,14 @@ import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.fileTypes.SyntaxHighlighter
 import com.intellij.openapi.fileTypes.SyntaxHighlighterFactory
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.testFramework.LightVirtualFile
 
 /**
- * Resolves the free-form target language name from the settings into a FileType,
- * so translated code can be highlighted with that language's real lexer.
- * Returns null when no known language matches; callers then fall back to plain text.
+ * Resolves the free-form target language name from the settings into something the platform can
+ * lex: an IDE-native FileType when the IDE supports the language, otherwise a TextMate bundle
+ * claiming the extension (e.g. Java/Go/Kotlin in PyCharm). Returns null when nothing claims the
+ * language; callers then fall back to plain text.
  */
 object TargetFileTypes {
 
@@ -36,6 +39,29 @@ object TargetFileTypes {
         "yml" to "YAML",
     )
 
+    // Canonical language name -> file extension used to claim a lexer (native or TextMate bundle).
+    private val EXTENSIONS = mapOf(
+        "Java" to "java",
+        "Kotlin" to "kt",
+        "Go" to "go",
+        "C#" to "cs",
+        "C++" to "cpp",
+        "Rust" to "rs",
+        "Ruby" to "rb",
+        "Python" to "py",
+        "JavaScript" to "js",
+        "TypeScript" to "ts",
+        "Swift" to "swift",
+        "Objective-C" to "m",
+        "Scala" to "scala",
+        "Dart" to "dart",
+        "Lua" to "lua",
+        "Perl" to "pl",
+        "Erlang" to "erl",
+        "Shell Script" to "sh",
+        "YAML" to "yml",
+    )
+
     fun resolve(target: String): FileType? {
         val name = target.trim()
         if (name.isEmpty()) return null
@@ -48,10 +74,28 @@ object TargetFileTypes {
         return byLanguage?.takeIf { !isPlainText(it) }
     }
 
+    /**
+     * A light in-memory file named like "snippet.<ext>", so the platform resolves a lexer for the
+     * target language from its extension — native support first, TextMate bundles second.
+     */
+    fun resolveVirtualFile(target: String): VirtualFile? {
+        val name = target.trim()
+        if (name.isEmpty()) return null
+        val byName = resolve(name)
+        if (byName != null) return LightVirtualFile("snippet." + byName.defaultExtension, byName, "")
+        val canonical = ALIASES[name.lowercase()] ?: name
+        val ext = EXTENSIONS[canonical] ?: Regex("[^a-z0-9]").replace(canonical.lowercase(), "")
+        if (ext.isEmpty()) return null
+        val file = LightVirtualFile("snippet.$ext")
+        return if (isPlainText(file.fileType)) null else file
+    }
+
     /** Lexer-level highlighter for coloring translated code that lives outside a real editor. */
     fun syntaxHighlighterFor(target: String, project: Project?): SyntaxHighlighter? {
-        val fileType = resolve(target) ?: return null
-        return runCatching { SyntaxHighlighterFactory.getSyntaxHighlighter(fileType, project, null) }.getOrNull()
+        val file = resolveVirtualFile(target) ?: return null
+        return runCatching {
+            SyntaxHighlighterFactory.getSyntaxHighlighter(file.fileType, project, file)
+        }.getOrNull()
     }
 
     // Language IDs are case-sensitive ("JAVA", "kotlin", "go"), so try the common spellings.

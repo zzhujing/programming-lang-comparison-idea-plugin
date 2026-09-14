@@ -9,6 +9,7 @@ import com.intellij.openapi.editor.highlighter.EditorHighlighterFactory
 import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.intellij.testFramework.LightVirtualFile
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBUI
@@ -40,9 +41,10 @@ class TranslationsPanel(private val project: Project) : JBPanel<TranslationsPane
     fun startSession(sourceLang: String, target: String) {
         currentTarget = target
         headerLabel.text = "Source: $sourceLang   →   $target"
-        val fileType = TargetFileTypes.resolve(target) ?: PlainTextFileType.INSTANCE
+        val file = TargetFileTypes.resolveVirtualFile(target)
+            ?: LightVirtualFile("snippet.txt", PlainTextFileType.INSTANCE, "")
         editor.setHighlighter(
-            EditorHighlighterFactory.getInstance().createEditorHighlighter(fileType, editor.colorsScheme, project)
+            EditorHighlighterFactory.getInstance().createEditorHighlighter(file, editor.colorsScheme, project)
         )
         setText("")
     }
