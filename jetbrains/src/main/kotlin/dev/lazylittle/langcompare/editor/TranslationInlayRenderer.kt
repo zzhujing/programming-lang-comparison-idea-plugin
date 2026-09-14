@@ -70,7 +70,12 @@ class TranslationInlayRenderer(private val editor: Editor, private val model: Ta
 
     private fun headerText(): String {
         val status = model.statusText()
-        return if (status.isEmpty()) "→ ${model.target}" else "→ ${model.target}  ($status)"
+        val base = if (status.isEmpty()) "→ ${model.target}" else "→ ${model.target}  ($status)"
+        // Finished result, but no lexer in this IDE yields colors for the target language (e.g. Java in PyCharm).
+        val hint = if (status.isEmpty() && model.displayText().isNotBlank() &&
+            TargetFileTypes.syntaxHighlighterFor(model.target, editor.project, model.displayText()) == null
+        ) "  (no syntax highlighting for this language in this IDE)" else ""
+        return base + hint
     }
 
     private fun contentLines(): List<String> {
@@ -191,15 +196,18 @@ class TranslationInlayRenderer(private val editor: Editor, private val model: Ta
         val key = lines to editor.colorsScheme
         if (spansKey == key) return spansCache
         val computed = runCatching { computeSpans(lines) }.getOrDefault(emptyList())
-        spansKey = key
-        spansCache = computed
+        // Don't cache empty results: a highlighter may become available once TextMate bundles finish loading.
+        if (computed.any { it.isNotEmpty() }) {
+            spansKey = key
+            spansCache = computed
+        }
         return computed
     }
 
     private fun computeSpans(lines: List<String>): List<List<Span>> {
-        val highlighter = TargetFileTypes.syntaxHighlighterFor(model.target, editor.project) ?: return emptyList()
-        val lexer = highlighter.highlightingLexer
         val text = lines.joinToString("\n")
+        val highlighter = TargetFileTypes.syntaxHighlighterFor(model.target, editor.project, text) ?: return emptyList()
+        val lexer = highlighter.highlightingLexer
         val lineStarts = IntArray(lines.size)
         var offset = 0
         for (i in lines.indices) {

@@ -13,7 +13,7 @@ Compare code across programming languages without leaving your JetBrains IDE: se
 ## ✨ Features
 
 - **Real-time comparison**: select code and the translation streams in right below the selection; source language is auto-detected, or set it manually
-- **Target-language syntax highlighting**: translations are colored with the target language's real lexer, so any language the IDE knows (Java, Kotlin, Go, TypeScript, …) is properly highlighted
+- **Target-language syntax highlighting**: translations are colored with the target language's real lexer — languages the IDE itself supports are highlighted (Java/Kotlin/Go in IDEA, Python/JS/TS in PyCharm, …); unsupported ones stay plain text with a note in the header
 - **Comments stripped**: the translated output contains no comments — pure code only
 - **Result caching**: re-selecting the same code is instant; requests disable model thinking by default for a faster first token
 - **Any OpenAI-format service**: bigmodel, OpenAI, DeepSeek, Moonshot, Qwen, One-API/New-API gateways, …
