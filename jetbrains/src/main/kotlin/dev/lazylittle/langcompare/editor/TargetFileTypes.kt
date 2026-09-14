@@ -67,7 +67,11 @@ object TargetFileTypes {
         "YAML" to "yml",
     )
 
-    private val highlighterCache = ConcurrentHashMap<String, java.util.Optional<SyntaxHighlighter>>()
+    // Positive results are cached for the session; misses are retried after a short delay because
+    // TextMate bundles register asynchronously during IDE startup.
+    private val MISS_RETRY_MS = 5_000L
+    private val highlighterCache = ConcurrentHashMap<String, CacheEntry>()
+    private class CacheEntry(val highlighter: SyntaxHighlighter?, val at: Long)
 
     fun resolve(target: String): FileType? {
         val name = target.trim()
@@ -115,9 +119,13 @@ object TargetFileTypes {
     fun syntaxHighlighterFor(target: String, project: Project?, sampleText: String): SyntaxHighlighter? {
         val name = target.trim()
         if (name.isEmpty()) return null
-        highlighterCache[name]?.let { return it.orElse(null) }
+        val now = System.currentTimeMillis()
+        val cached = highlighterCache[name]
+        if (cached != null && (cached.highlighter != null || now - cached.at < MISS_RETRY_MS)) {
+            return cached.highlighter
+        }
         val resolved = resolveByNameOrNull(name, project, sampleText) ?: resolveViaTextmateOrNull(name, project, sampleText)
-        highlighterCache[name] = java.util.Optional.ofNullable(resolved)
+        highlighterCache[name] = CacheEntry(resolved, now)
         return resolved
     }
 

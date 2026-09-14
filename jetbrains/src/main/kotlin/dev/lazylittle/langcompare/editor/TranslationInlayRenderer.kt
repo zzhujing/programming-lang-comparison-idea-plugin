@@ -196,8 +196,11 @@ class TranslationInlayRenderer(private val editor: Editor, private val model: Ta
         val key = lines to editor.colorsScheme
         if (spansKey == key) return spansCache
         val computed = runCatching { computeSpans(lines) }.getOrDefault(emptyList())
-        spansKey = key
-        spansCache = computed
+        // Don't cache empty results: a highlighter may become available once TextMate bundles finish loading.
+        if (computed.any { it.isNotEmpty() }) {
+            spansKey = key
+            spansCache = computed
+        }
         return computed
     }
 
