@@ -17,11 +17,20 @@ class LlmSettings : PersistentStateComponent<LlmSettings.State> {
         var baseUrl: String = "https://api.openai.com/v1"
         var model: String = "gpt-4o-mini"
         var sourceLanguage: String = ""
-        var targetLanguages: String = "Java, Go"
+        var targetLanguage: String = "Java"
         var autoTranslate: Boolean = true
         var debounceMillis: Int = 500
         var streaming: Boolean = true
         var proxy: String = ""
+
+        /** Rough cap on prompt size; 0 (or less) disables the check. */
+        var maxInputTokens: Int = 4000
+
+        /**
+         * Sends GLM-style "thinking": {"type": "disabled"} to cut time-to-first-token.
+         * User-controlled because strict providers (e.g. OpenAI) reject unknown fields.
+         */
+        var disableThinking: Boolean = true
     }
 
     // The API key is a secret: keep it in the IDE credential store, not in the XML state file.
@@ -36,10 +45,7 @@ class LlmSettings : PersistentStateComponent<LlmSettings.State> {
         this.state = state
     }
 
-    fun targetLanguages(): List<String> =
-        state.targetLanguages.split(',', ';', '\n')
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
+    fun targetLanguage(): String = state.targetLanguage.trim().ifEmpty { "Java" }
 
     private val passwordSafe: PasswordSafe
         get() = ApplicationManager.getApplication().getService(PasswordSafe::class.java)

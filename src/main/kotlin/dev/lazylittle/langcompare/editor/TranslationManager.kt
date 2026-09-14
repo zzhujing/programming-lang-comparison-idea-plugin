@@ -84,46 +84,61 @@ class TranslationManager(private val project: Project) : Disposable {
         val state = stateFor(editor)
         state.reset()
         if (baseUrl.isEmpty() || apiKey.isNullOrBlank()) {
-            addNoteInlay(editor, state, "LLM is not configured — open Settings → Tools → Language Comparison")
+            addNoteInlay(
+                editor, state, "settings",
+                "LLM is not configured — open Settings → Tools → Language Comparison"
+            )
             return
         }
         val source = settings.state.sourceLanguage.trim().ifEmpty { detectSourceLanguage(editor) }
-        val targets = settings.targetLanguages().ifEmpty { listOf("Java") }
+        val target = settings.targetLanguage()
         val insertOffset = endOfSelectionLine(editor)
-        panel?.startSession(source, targets)
+        panel?.startSession(source, target)
+
+        val maxInputTokens = settings.state.maxInputTokens
+        if (maxInputTokens > 0) {
+            val estimated = estimateTokens(systemPrompt(source, target) + userPrompt(source, target, text))
+            if (estimated > maxInputTokens) {
+                addNoteInlay(
+                    editor, state, target,
+                    "Selection too large: ~$estimated input tokens (limit $maxInputTokens). " +
+                        "Select less code or raise 'Max input tokens' in settings."
+                )
+                return
+            }
+        }
 
         val modelName = settings.state.model.trim().ifEmpty { "gpt-4o-mini" }
-        for ((index, target) in targets.withIndex()) {
-            val model = TargetModel(target)
-            val renderer = TranslationInlayRenderer(editor, model)
-            val inlay = editor.inlayModel.addBlockElement(insertOffset, false, false, index, renderer)
-            if (inlay != null) state.inlays.add(inlay)
-            model.onUpdate = { scheduleRefresh(model, inlay) }
+        val model = TargetModel(target)
+        val renderer = TranslationInlayRenderer(editor, model)
+        val inlay = editor.inlayModel.addBlockElement(insertOffset, false, false, 0, renderer)
+        if (inlay != null) state.inlays.add(inlay)
+        model.onUpdate = { scheduleRefresh(model, inlay) }
 
-            val cacheKey = "$modelName|$source|$target|${text.length}|${text.hashCode()}"
-            val cached = cacheGet(cacheKey)
-            if (cached != null) {
-                model.complete(cached)
-                continue
-            }
-            state.cancellables.add(
-                LlmClient.chat(
-                    baseUrl = baseUrl,
-                    apiKey = apiKey,
-                    proxy = settings.state.proxy,
-                    model = modelName,
-                    systemPrompt = systemPrompt(source, target),
-                    userPrompt = userPrompt(source, target, text),
-                    streaming = settings.state.streaming,
-                    onDelta = model::append,
-                    onSuccess = { full ->
-                        if (full.isNotBlank()) cachePut(cacheKey, full)
-                        model.complete(full)
-                    },
-                    onError = model::fail,
-                )
-            )
+        val cacheKey = "$modelName|$source|$target|${text.length}|${text.hashCode()}"
+        val cached = cacheGet(cacheKey)
+        if (cached != null) {
+            model.complete(cached)
+            return
         }
+        state.cancellables.add(
+            LlmClient.chat(
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                proxy = settings.state.proxy,
+                model = modelName,
+                systemPrompt = systemPrompt(source, target),
+                userPrompt = userPrompt(source, target, text),
+                streaming = settings.state.streaming,
+                disableThinking = settings.state.disableThinking,
+                onDelta = model::append,
+                onSuccess = { full ->
+                    if (full.isNotBlank()) cachePut(cacheKey, full)
+                    model.complete(full)
+                },
+                onError = model::fail,
+            )
+        )
     }
 
     private fun scheduleRefresh(model: TargetModel, inlay: Inlay<*>?) {
@@ -154,14 +169,22 @@ class TranslationManager(private val project: Project) : Disposable {
         }
     }
 
-    private fun addNoteInlay(editor: Editor, state: EditorState, message: String) {
-        val model = TargetModel("settings")
+    private fun addNoteInlay(editor: Editor, state: EditorState, target: String, message: String) {
+        val model = TargetModel(target)
         model.fail(message)
         val inlay = editor.inlayModel.addBlockElement(
             endOfSelectionLine(editor), false, false, 0, TranslationInlayRenderer(editor, model)
         )
         if (inlay != null) state.inlays.add(inlay)
         panel?.updateTarget(model)
+    }
+
+    /** ASCII text is ~4 chars/token; CJK ~1 token/char. Good enough for a pre-flight size cap. */
+    private fun estimateTokens(text: String): Int {
+        var ascii = 0
+        var nonAscii = 0
+        for (c in text) if (c.code < 128) ascii++ else nonAscii++
+        return (ascii / 4 + nonAscii).coerceAtLeast(1)
     }
 
     private fun detectSourceLanguage(editor: Editor): String {

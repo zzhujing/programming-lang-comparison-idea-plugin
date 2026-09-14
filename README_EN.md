@@ -14,9 +14,9 @@ Compare code across programming languages without leaving your JetBrains IDE: se
 
 - **Real-time comparison**: select code and the translation streams in right below the selection; source language is auto-detected, or set it manually
 - **Comments stripped**: the translated output contains no comments — pure code only
-- **Parallel target languages**: Java / Go / Kotlin / TypeScript … all at once; results are cached, so re-selecting is instant
+- **Result caching**: re-selecting the same code is instant; requests disable model thinking by default for a faster first token
 - **Any OpenAI-format service**: bigmodel, OpenAI, DeepSeek, Moonshot, Qwen, One-API/New-API gateways, …
-- **Tool window mirror**: the `LangCompare` tool window shows per-language tabs for easy copying
+- **Tool window mirror**: the `LangCompare` tool window mirrors the translation for easy copying
 - **Proxy support**: configure a proxy in the plugin, or inherit the IDE/system proxy
 
 ## 📦 Install
@@ -48,14 +48,16 @@ In the IDE: `Settings → Plugins → ⚙ → Install Plugin from Disk` and pick
 | Model | Model name, e.g. `glm-5.3-flash`,  `deepseek-flash`                                                                       |
 | HTTP Proxy | Optional proxy for LLM requests (e.g. `http://127.0.0.1:7890`); `direct` forces no proxy; empty inherits IDE/system proxy |
 | Source language | Optional source-language override, e.g. `Python`, `Node.js`; empty = auto-detect                                          |
-| Target languages | Comma-separated targets, e.g. `Java, Go, Kotlin, TypeScript, Rust`                                                        |
+| Target language | Single target language, e.g. `Java`, `Go`, `Kotlin`, `TypeScript`                                                        |
 | Translate automatically | Translate while selecting (when off, manual trigger only)                                                                 |
 | Debounce (ms) | Debounce interval for auto trigger (200–10000)                                                                            |
 | Use streaming responses | Stream tokens as they are generated                                                                                       |
+| Max input tokens | Rough cap on prompt size (~4 chars/token for code, ~1/char for CJK); oversized selections are rejected before any request. 0 = unlimited |
+| Disable thinking | Sends `thinking: disabled` directly in the OpenAI-format request (supported by bigmodel/GLM) to cut time-to-first-token; turn off if your provider rejects unknown fields |
 
 ## ❓ FAQ
 
-- **Slow responses?** Switching to a lighter model is the biggest win (e.g. `glm-5.3-flash`); keep selections small; the plugin already streams, runs targets in parallel, caches results and reuses connections.
+- **Slow responses?** Switching to a lighter model plus disabling thinking (on by default) is the biggest win; keep selections small — selections over Max input tokens are rejected outright; the plugin already streams, caches results and reuses connections.
 - **TLS handshake failed?** The error now includes the actual connection mode `[connection: ...]`. If a directly reachable service is being routed through a proxy, fill `direct`; if the service needs a proxy (e.g. api.openai.com), configure HTTP Proxy.
 - **ChatGPT subscription?** A ChatGPT subscription cannot be used as an API directly — expose it through a One-API/New-API-style gateway and use its Base URL.
 - **401 / model not found?** Check the API key permissions and that the model name matches the Base URL.

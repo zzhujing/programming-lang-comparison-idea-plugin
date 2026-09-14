@@ -93,6 +93,7 @@ object LlmClient {
         systemPrompt: String,
         userPrompt: String,
         streaming: Boolean,
+        disableThinking: Boolean,
         onDelta: (String) -> Unit,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit,
@@ -104,9 +105,9 @@ object LlmClient {
             Runnable {
                 try {
                     val full = if (streaming) {
-                        doStreaming(client, baseUrl, apiKey, model, systemPrompt, userPrompt, streamRef, onDelta)
+                        doStreaming(client, baseUrl, apiKey, model, systemPrompt, userPrompt, streamRef, disableThinking, onDelta)
                     } else {
-                        doBlocking(client, baseUrl, apiKey, model, systemPrompt, userPrompt)
+                        doBlocking(client, baseUrl, apiKey, model, systemPrompt, userPrompt, disableThinking)
                     }
                     onSuccess(full)
                 } catch (e: InterruptedException) {
@@ -130,10 +131,11 @@ object LlmClient {
         systemPrompt: String,
         userPrompt: String,
         streamRef: AtomicReference<InputStream?>,
+        disableThinking: Boolean,
         onDelta: (String) -> Unit,
     ): String {
         val request = requestBuilder(baseUrl, apiKey)
-            .POST(HttpRequest.BodyPublishers.ofString(requestJson(model, systemPrompt, userPrompt, stream = true)))
+            .POST(HttpRequest.BodyPublishers.ofString(requestJson(model, systemPrompt, userPrompt, stream = true, disableThinking = disableThinking)))
             .header("Accept", "text/event-stream")
             .build()
         val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
@@ -171,10 +173,11 @@ object LlmClient {
         model: String,
         systemPrompt: String,
         userPrompt: String,
+        disableThinking: Boolean,
     ): String {
         val request = requestBuilder(baseUrl, apiKey)
             .timeout(Duration.ofSeconds(180))
-            .POST(HttpRequest.BodyPublishers.ofString(requestJson(model, systemPrompt, userPrompt, stream = false)))
+            .POST(HttpRequest.BodyPublishers.ofString(requestJson(model, systemPrompt, userPrompt, stream = false, disableThinking = disableThinking)))
             .build()
         val response = client.send(request, HttpResponse.BodyHandlers.ofString())
         if (response.statusCode() != 200) {
@@ -236,17 +239,28 @@ object LlmClient {
         return builder
     }
 
-    private fun requestJson(model: String, systemPrompt: String, userPrompt: String, stream: Boolean): String =
-        gson.toJson(
-            linkedMapOf<String, Any>(
-                "model" to model,
-                "stream" to stream,
-                "messages" to listOf(
-                    linkedMapOf("role" to "system", "content" to systemPrompt),
-                    linkedMapOf("role" to "user", "content" to userPrompt),
-                ),
-            )
+    private fun requestJson(
+        model: String,
+        systemPrompt: String,
+        userPrompt: String,
+        stream: Boolean,
+        disableThinking: Boolean,
+    ): String {
+        val body = linkedMapOf<String, Any>(
+            "model" to model,
+            "stream" to stream,
+            "messages" to listOf(
+                linkedMapOf("role" to "system", "content" to systemPrompt),
+                linkedMapOf("role" to "user", "content" to userPrompt),
+            ),
         )
+        if (disableThinking) {
+            // "thinking" is passed directly in the OpenAI-format body; only sent when enabled
+            // because strict providers reject unknown fields.
+            body["thinking"] = linkedMapOf("type" to "disabled")
+        }
+        return gson.toJson(body)
+    }
 
     /** Strips a markdown code fence ("```lang ... ```") if present; returns raw text otherwise. */
     fun extractCodeBlock(text: String): String {

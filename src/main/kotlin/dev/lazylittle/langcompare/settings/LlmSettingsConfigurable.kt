@@ -12,16 +12,20 @@ class LlmSettingsConfigurable : BoundConfigurable("Language Comparison") {
 
     private val apiKeyField = JBPasswordField()
     private val debounceField = JBTextField()
+    private val maxTokensField = JBTextField()
     private val autoBox = JBCheckBox("Translate automatically while selecting code")
     private val streamBox = JBCheckBox("Use streaming responses")
+    private val thinkingBox = JBCheckBox("Disable model thinking / reasoning (faster first token)")
 
     override fun createPanel(): DialogPanel {
         val settings = LlmSettings.instance
         val st = settings.state
         apiKeyField.text = settings.apiKey ?: ""
         debounceField.text = st.debounceMillis.toString()
+        maxTokensField.text = st.maxInputTokens.toString()
         autoBox.isSelected = st.autoTranslate
         streamBox.isSelected = st.streaming
+        thinkingBox.isSelected = st.disableThinking
         return panel {
             group("LLM (OpenAI-compatible API)") {
                 row("Base URL:") {
@@ -51,18 +55,33 @@ class LlmSettingsConfigurable : BoundConfigurable("Language Comparison") {
                     )
                 }
             }
-            group("Translation Targets") {
+            group("Translation") {
                 row("Source language:") {
                     textField().bindText(st::sourceLanguage)
                         .comment("Optional override, e.g. Python, Node.js. Empty = auto-detect from the file.")
                 }
-                row("Target languages:") {
-                    textField().bindText(st::targetLanguages)
-                        .comment("Comma separated list, e.g. Java, Go, Kotlin, TypeScript, Rust")
+                row("Target language:") {
+                    textField().bindText(st::targetLanguage)
+                        .comment("Single target language, e.g. Java, Go, Kotlin, TypeScript, Rust")
+                }
+                row("Max input tokens:") {
+                    cell(maxTokensField)
+                        .comment(
+                            "Approximate cap on prompt size (~4 chars/token for code, ~1/char for CJK). " +
+                                "Oversized selections are rejected before any request is sent. 0 = unlimited."
+                        )
                 }
                 row { cell(autoBox) }
                 row("Debounce (ms):") { cell(debounceField) }
                 row { cell(streamBox) }
+                row { cell(thinkingBox) }
+                row {
+                    comment(
+                        "\"Disable thinking\" adds \"thinking\": {\"type\": \"disabled\"} directly in the " +
+                            "OpenAI-format request (supported by bigmodel/GLM) and speeds up the first token " +
+                            "considerably. Turn it off if your provider rejects unknown request fields (e.g. OpenAI)."
+                    )
+                }
             }
         }
     }
@@ -72,8 +91,10 @@ class LlmSettingsConfigurable : BoundConfigurable("Language Comparison") {
         return super.isModified() ||
             String(apiKeyField.password) != (LlmSettings.instance.apiKey ?: "") ||
             debounceField.text.trim().toIntOrNull() != st.debounceMillis ||
+            maxTokensField.text.trim().toIntOrNull() != st.maxInputTokens ||
             autoBox.isSelected != st.autoTranslate ||
-            streamBox.isSelected != st.streaming
+            streamBox.isSelected != st.streaming ||
+            thinkingBox.isSelected != st.disableThinking
     }
 
     override fun apply() {
@@ -82,8 +103,11 @@ class LlmSettingsConfigurable : BoundConfigurable("Language Comparison") {
         settings.apiKey = String(apiKeyField.password)
         settings.state.debounceMillis =
             debounceField.text.trim().toIntOrNull()?.coerceIn(200, 10_000) ?: settings.state.debounceMillis
+        settings.state.maxInputTokens =
+            maxTokensField.text.trim().toIntOrNull()?.coerceIn(0, 1_000_000) ?: settings.state.maxInputTokens
         settings.state.autoTranslate = autoBox.isSelected
         settings.state.streaming = streamBox.isSelected
+        settings.state.disableThinking = thinkingBox.isSelected
     }
 
     override fun reset() {
@@ -91,7 +115,9 @@ class LlmSettingsConfigurable : BoundConfigurable("Language Comparison") {
         val st = LlmSettings.instance.state
         apiKeyField.text = LlmSettings.instance.apiKey ?: ""
         debounceField.text = st.debounceMillis.toString()
+        maxTokensField.text = st.maxInputTokens.toString()
         autoBox.isSelected = st.autoTranslate
         streamBox.isSelected = st.streaming
+        thinkingBox.isSelected = st.disableThinking
     }
 }

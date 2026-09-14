@@ -8,34 +8,28 @@ import com.intellij.util.ui.JBUI
 import dev.lazylittle.langcompare.editor.TargetModel
 import java.awt.BorderLayout
 import java.awt.Font
-import javax.swing.JTabbedPane
 
-/** Tool window content: one tab per target language, mirroring the in-editor results for easy copying. */
+/** Tool window content: mirrors the in-editor translation for easy copying. */
 class TranslationsPanel : JBPanel<TranslationsPanel>(BorderLayout()) {
 
     private val headerLabel = JBLabel(" ")
-    private val tabs = JTabbedPane()
-    private val areas = LinkedHashMap<String, JBTextArea>()
+    private val area = createArea()
+    private var currentTarget: String? = null
 
     init {
         headerLabel.border = JBUI.Borders.empty(8, 12)
         add(headerLabel, BorderLayout.NORTH)
-        add(tabs, BorderLayout.CENTER)
+        add(JBScrollPane(area), BorderLayout.CENTER)
     }
 
-    fun startSession(sourceLang: String, targets: List<String>) {
-        areas.clear()
-        tabs.removeAll()
-        headerLabel.text = "Source: $sourceLang   →   ${targets.joinToString(", ")}"
-        for (target in targets) {
-            val area = createArea()
-            areas[target] = area
-            tabs.addTab(target, JBScrollPane(area))
-        }
+    fun startSession(sourceLang: String, target: String) {
+        currentTarget = target
+        headerLabel.text = "Source: $sourceLang   →   $target"
+        area.text = ""
     }
 
     fun updateTarget(model: TargetModel) {
-        val area = areas[model.target] ?: return
+        if (model.target != currentTarget) return
         area.text = when {
             model.error != null -> "ERROR: ${model.error}\n\n${model.displayText()}"
             model.running -> model.displayText().ifEmpty { "…" }
@@ -45,9 +39,9 @@ class TranslationsPanel : JBPanel<TranslationsPanel>(BorderLayout()) {
     }
 
     fun clearAll() {
-        areas.clear()
-        tabs.removeAll()
+        currentTarget = null
         headerLabel.text = " "
+        area.text = ""
     }
 
     private fun createArea(): JBTextArea {

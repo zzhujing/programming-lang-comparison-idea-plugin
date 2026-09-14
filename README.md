@@ -14,9 +14,9 @@
 
 - **选区实时类比**：选中代码，翻译结果流式显示在选区正下方；源语言自动检测，也可手动指定
 - **自动去除注释**：翻译结果不包含原代码中的注释，只保留纯代码
-- **多目标语言并行**：Java / Go / Kotlin / TypeScript …… 同时翻译；结果缓存，重复选中秒出
+- **结果缓存**：同一段代码重复选中即时出结果；请求默认关闭思考模式，首 token 更快
 - **任意 OpenAI 格式服务**：bigmodel、OpenAI、DeepSeek、Moonshot、Qwen、One-API/New-API 网关等
-- **工具窗口镜像**：`LangCompare` 工具窗口按目标语言分页展示，方便复制
+- **工具窗口镜像**：`LangCompare` 工具窗口同步展示翻译结果，方便复制
 - **代理支持**：可在插件内配置代理，或继承 IDE/系统代理
 
 ## 📦 安装
@@ -48,14 +48,16 @@
 | Model | 模型名，如 `glm-5.3-flash`、`deepseek-flash`                                                            |
 | HTTP Proxy | 可选，LLM 请求专用代理（如 `http://127.0.0.1:7890`）；支持 `direct` 强制直连；留空继承 IDE/系统代理     |
 | Source language | 源语言覆盖（可选），如 `Python`、`Node.js`；留空自动检测                                                |
-| Target languages | 目标语言列表（逗号分隔），如 `Java, Go, Kotlin, TypeScript, Rust`                                       |
+| Target language | 单一目标语言，如 `Java`、`Go`、`Kotlin`、`TypeScript`                                       |
 | Translate automatically | 选中代码时自动翻译（关闭后仅手动触发）                                                                  |
 | Debounce (ms) | 自动触发防抖间隔（200–10000）                                                                           |
 | Use streaming responses | 流式返回，边生成边显示                                                                                  |
+| Max input tokens | 输入体积上限（按 token 估算：代码约 4 字符/token，中文约 1 字/token），超限直接拒绝发送；0 = 不限制 |
+| Disable thinking | 在 OpenAI 格式请求中直接附带 `thinking: disabled` 关闭思考模式（bigmodel/GLM 支持），首 token 显著加快；若服务商拒绝未知字段请关闭 |
 
 ## ❓ FAQ
 
-- **响应慢？** 换轻量模型是最大的提速手段（如 `glm-5.3-flash`）；选区尽量精简；插件已内置流式渲染、并行请求、结果缓存与连接复用。
+- **响应慢？** 换轻量模型 + 关闭思考模式（默认已开启 Disable thinking）是最大的提速手段；选区尽量精简，超过 Max input tokens 的选区会被直接拒绝；插件已内置流式渲染、结果缓存与连接复用。
 - **TLS handshake failed？** 该错误会标注实际连接方式 `[connection: ...]`：访问可直连的服务却走了代理时，填 `direct` 强制直连；访问需代理的服务（如 api.openai.com）则配置 HTTP Proxy。
 - **想用 ChatGPT 订阅？** 订阅不能直接当 API 用，需通过 One-API/New-API 等网关转成 OpenAI 格式后填 Base URL。
 - **401 / model not found？** 检查 API Key 权限，以及模型名与 Base URL 是否配套。
