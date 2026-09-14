@@ -13,10 +13,11 @@ Compare code across programming languages without leaving your JetBrains IDE: se
 ## ✨ Features
 
 - **Real-time comparison**: select code and the translation streams in right below the selection; source language is auto-detected, or set it manually
+- **Target-language syntax highlighting**: translations are colored with the target language's real lexer, so any language the IDE knows (Java, Kotlin, Go, TypeScript, …) is properly highlighted
 - **Comments stripped**: the translated output contains no comments — pure code only
 - **Result caching**: re-selecting the same code is instant; requests disable model thinking by default for a faster first token
 - **Any OpenAI-format service**: bigmodel, OpenAI, DeepSeek, Moonshot, Qwen, One-API/New-API gateways, …
-- **Tool window mirror**: the `LangCompare` tool window mirrors the translation for easy copying
+- **Tool window mirror**: the `LangCompare` tool window mirrors the translation (also syntax-highlighted) for easy copying
 - **Proxy support**: configure a proxy in the plugin, or inherit the IDE/system proxy
 
 ## 📦 Install

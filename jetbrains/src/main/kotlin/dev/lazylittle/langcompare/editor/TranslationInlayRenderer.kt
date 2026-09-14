@@ -3,7 +3,9 @@ package dev.lazylittle.langcompare.editor
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.Inlay
 import com.intellij.openapi.editor.colors.EditorColors
+import com.intellij.openapi.editor.colors.EditorColorsScheme
 import com.intellij.openapi.editor.colors.EditorFontType
+import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.ui.ColorUtil
 import com.intellij.ui.JBColor
@@ -59,7 +61,10 @@ class TargetModel(val target: String) {
     }
 }
 
-/** Draws a rounded panel below the selection: a "→ Target" header plus the translated code lines. */
+/**
+ * Draws a rounded panel below the selection: a "→ Target" header plus the translated code lines,
+ * syntax-highlighted with the target language's own lexer when the IDE knows that language.
+ */
 class TranslationInlayRenderer(private val editor: Editor, private val model: TargetModel) :
     com.intellij.openapi.editor.EditorCustomElementRenderer {
 
@@ -75,7 +80,8 @@ class TranslationInlayRenderer(private val editor: Editor, private val model: Ta
         }
         val text = model.displayText()
         if (text.isBlank()) return listOf(if (model.running) "…" else "(empty response)")
-        return text.split('\n')
+        // Tabs render as missing glyphs in drawString and break column math; expand for both lexing and painting.
+        return text.split('\n').map { it.replace("\t", "    ") }
     }
 
     private fun wrap(line: String): List<String> =
@@ -115,6 +121,8 @@ class TranslationInlayRenderer(private val editor: Editor, private val model: Ta
         val codeF = codeFont()
         val fmh = metrics(headerF)
         val fmc = metrics(codeF)
+        val lines = contentLines()
+        val spans = spansFor(lines)
 
         val gg = g.create() as Graphics2D
         try {
@@ -138,14 +146,103 @@ class TranslationInlayRenderer(private val editor: Editor, private val model: Ta
             y += fmh.height + 4f
 
             gg.font = codeF
-            gg.color = if (model.error != null) errorColor else fg
-            for (line in contentLines()) {
-                gg.drawString(line, PAD_H.toFloat(), y + fmc.ascent)
+            for ((index, line) in lines.withIndex()) {
+                val rowSpans = if (model.error != null) null else spans.getOrNull(index)
+                if (rowSpans.isNullOrEmpty()) {
+                    gg.color = if (model.error != null) errorColor else fg
+                    gg.drawString(line, PAD_H.toFloat(), y + fmc.ascent)
+                } else {
+                    var x = PAD_H.toFloat()
+                    var cursor = 0
+                    for (span in rowSpans) {
+                        if (span.start > cursor) {
+                            gg.color = fg
+                            val gap = line.substring(cursor, span.start)
+                            gg.drawString(gap, x, y + fmc.ascent)
+                            x += fmc.stringWidth(gap)
+                        }
+                        gg.color = span.color ?: fg
+                        val text = line.substring(span.start, span.end)
+                        gg.drawString(text, x, y + fmc.ascent)
+                        x += fmc.stringWidth(text)
+                        cursor = span.end
+                    }
+                    if (cursor < line.length) {
+                        gg.color = fg
+                        gg.drawString(line.substring(cursor), x, y + fmc.ascent)
+                    }
+                }
                 y += fmc.height
             }
         } finally {
             gg.dispose()
         }
+    }
+
+    /** A run of characters on one line sharing one resolved color; null color means the default foreground. */
+    private class Span(val start: Int, val end: Int, val color: Color?)
+
+    private var spansKey: Pair<List<String>, EditorColorsScheme>? = null
+    private var spansCache: List<List<Span>> = emptyList()
+
+    /** Re-lexes only when the text or the color scheme changed; repaints of unchanged text reuse cached spans. */
+    private fun spansFor(lines: List<String>): List<List<Span>> {
+        if (model.error != null) return emptyList()
+        val key = lines to editor.colorsScheme
+        if (spansKey == key) return spansCache
+        val computed = runCatching { computeSpans(lines) }.getOrDefault(emptyList())
+        spansKey = key
+        spansCache = computed
+        return computed
+    }
+
+    private fun computeSpans(lines: List<String>): List<List<Span>> {
+        val highlighter = TargetFileTypes.syntaxHighlighterFor(model.target, editor.project) ?: return emptyList()
+        val lexer = highlighter.highlightingLexer
+        val text = lines.joinToString("\n")
+        val lineStarts = IntArray(lines.size)
+        var offset = 0
+        for (i in lines.indices) {
+            lineStarts[i] = offset
+            offset += lines[i].length + 1
+        }
+        val spans = List(lines.size) { mutableListOf<Span>() }
+        lexer.start(text)
+        while (true) {
+            val tokenType = lexer.tokenType ?: break
+            val start = lexer.tokenStart
+            val end = lexer.tokenEnd
+            if (end > start) {
+                val color = foregroundColor(highlighter.getTokenHighlights(tokenType), editor.colorsScheme)
+                var line = 0
+                while (line < lines.lastIndex && start >= lineStarts[line] + lines[line].length + 1) line++
+                var pos = start
+                while (pos < end && line < lines.size) {
+                    val lineEnd = lineStarts[line] + lines[line].length
+                    if (pos >= lineEnd) {
+                        line++ // token continues past the newline (multi-line string/comment); step over '\n'
+                        pos++
+                        continue
+                    }
+                    val segEnd = minOf(end, lineEnd)
+                    spans[line].add(Span(pos - lineStarts[line], segEnd - lineStarts[line], color))
+                    pos = segEnd
+                }
+            }
+            lexer.advance()
+        }
+        return spans
+    }
+
+    /** Later keys in the array win, mirroring how the editor layers attribute keys onto one token. */
+    private fun foregroundColor(keys: Array<TextAttributesKey>, scheme: EditorColorsScheme): Color? {
+        var color: Color? = null
+        for (key in keys) {
+            val attrs = scheme.getAttributes(key) ?: continue
+            val next = attrs.foregroundColor ?: attrs.errorStripeColor ?: continue
+            color = next
+        }
+        return color
     }
 
     companion object {
