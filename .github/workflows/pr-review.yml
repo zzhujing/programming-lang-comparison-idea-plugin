@@ -1,0 +1,76 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # fork PR 拿不到 secrets,跳过
+    if: github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    env:
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+      LLM_MODEL: ${{ secrets.LLM_MODEL || 'gpt-4o-mini' }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check LLM_API_KEY
+        id: keycheck
+        run: |
+          if [ -z "$LLM_API_KEY" ]; then
+            echo "::warning::Secret LLM_API_KEY 未配置,跳过 AI review"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch PR diff
+        if: steps.keycheck.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$REPO/pulls/$PR_NUMBER" \
+            -H "Accept: application/vnd.github.v3.diff" > pr.diff
+          echo "diff size: $(wc -c < pr.diff) bytes"
+
+      - name: LLM review
+        if: steps.keycheck.outputs.skip != 'true'
+        run: python3 .github/scripts/pr_review.py pr.diff review.md
+
+      - name: Post review comment
+        if: steps.keycheck.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          MARKER="<!-- langcompare-ai-review -->"
+          {
+            echo "$MARKER"
+            echo "## 🤖 AI Review"
+            echo
+            cat review.md
+            echo
+            echo "---"
+            echo "> 由 GitHub Actions 自动生成 · 模型 \`$LLM_MODEL\` · commit \`${GITHUB_SHA::7}\`"
+          } > comment.md
+
+          EXISTING="$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq "map(select(.body | startswith(\"$MARKER\"))) | map(.id) | first // empty")"
+          if [ -n "$EXISTING" ]; then
+            gh api -X PATCH "repos/$REPO/issues/$PR_NUMBER/comments/$EXISTING" \
+              -f body="$(cat comment.md)"
+          else
+            gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" \
+              -f body="$(cat comment.md)"
+          fi
