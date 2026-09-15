@@ -2,6 +2,8 @@
 
 在 VS Code 里选中一段代码，由任意 OpenAI 格式的 LLM 实时类比成目标语言（Python → Java、Go → Rust ……），流式显示在选区末行下方的可折叠评论块中。与 [JetBrains 版](../jetbrains/)共享同一套协议与逻辑设计。
 
+![usage demo](docs/images/usage.gif)
+
 ## ✨ 功能
 
 - **选区实时类比**：选中代码自动防抖触发，也可手动执行命令；源语言自动检测，也可手动指定
