@@ -131,6 +131,8 @@ jobs:
     needs: [resolve-version, build-jetbrains, build-vscode]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -142,10 +144,11 @@ jobs:
         run: |
           ls -lR dist
           FILES=(dist/jetbrains-plugin/*.zip dist/vscode-extension/*.vsix)
-          # workflow_dispatch 触发时 tag 尚不存在,gh 会自动在 main HEAD 上创建;
-          # 标签触发时 tag 已存在,直接挂载 release。
+          # --target: workflow_dispatch 触发时 tag 尚不存在,在当前 main HEAD 上创建;
+          # 标签触发时 tag 已存在,target 被忽略。
           # create 失败(如重跑时 Release 刚被建出)则退化为覆盖上传资产
           gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
             --title "$TAG" \
             --generate-notes \
             "${FILES[@]}" \
