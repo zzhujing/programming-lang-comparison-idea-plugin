@@ -2,7 +2,13 @@
 
 选中一段代码，立刻看到它用另一种语言怎么写——Python → Java、Go → Rust、Node.js → Kotlin……全程不用离开编辑器，由任意 OpenAI 格式的 LLM 实时驱动。
 
-![usage demo](jetbrains/docs/images/usage.gif)
+**IntelliJ IDEA / PyCharm**
+
+![JetBrains usage demo](jetbrains/docs/images/usage.gif)
+
+**VS Code**
+
+![VS Code usage demo](vscode/docs/images/usage.gif)
 
 ## ✨ 它能做什么
 
